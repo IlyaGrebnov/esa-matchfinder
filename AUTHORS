@@ -1,0 +1,9 @@
+-- Authors of esa-matchfinder
+
+  Ilya Grebnov <Ilya.Grebnov@gmail.com>
+
+-- This program is based on (at least) the work of
+
+  Eric Biggers, Charles Bloom, Piotr Tarsa, Yann Collet,
+  Bulat Ziganshin, Conor McCarthy, Lucas Marsh, Emmanuel Marty,
+  Aki Utoslahti, Mohamed Ibrahim Abouelhoda, Enno Ohlebusch.
