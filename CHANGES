@@ -1,2 +1,6 @@
-* 2022-06-12 : Version 1.0.0
-  * Initial public release of the esa-matchfinder.
+Changes in 1.0.1 (June 19, 2022)
+- Improved cache coherence for ARMv8 architecture.
+
+Changes in 1.0.0 (June 12, 2022)
+- Initial public release of the esa-matchfinder.
+

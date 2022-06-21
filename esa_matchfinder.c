@@ -127,11 +127,11 @@ typedef struct ESA_MF_CONTEXT
 #endif
 
 #if defined(ESA_MF_HAS_BUILTIN_PREFECTCH)
-    #define esa_matchfinder_prefetchr(address) __builtin_prefetch((const void *)(address), 0, 0)
-    #define esa_matchfinder_prefetchw(address) __builtin_prefetch((const void *)(address), 1, 0)
+    #define esa_matchfinder_prefetchr(address) __builtin_prefetch((const void *)(address), 0, 3)
+    #define esa_matchfinder_prefetchw(address) __builtin_prefetch((const void *)(address), 1, 3)
 #elif defined (_M_IX86) || defined (_M_AMD64)
     #include <intrin.h>
-    #define esa_matchfinder_prefetchr(address) _mm_prefetch((const void *)(address), _MM_HINT_NTA)
+    #define esa_matchfinder_prefetchr(address) _mm_prefetch((const void *)(address), _MM_HINT_T0)
     #define esa_matchfinder_prefetchw(address) _m_prefetchw((const void *)(address))
 #elif defined (_M_ARM)
     #include <intrin.h>
@@ -139,8 +139,8 @@ typedef struct ESA_MF_CONTEXT
     #define esa_matchfinder_prefetchw(address) __prefetchw((const void *)(address))
 #elif defined (_M_ARM64)
     #include <intrin.h>
-    #define esa_matchfinder_prefetchr(address) __prefetch2((const void *)(address), 1)
-    #define esa_matchfinder_prefetchw(address) __prefetch2((const void *)(address), 17)
+    #define esa_matchfinder_prefetchr(address) __prefetch2((const void *)(address), 0)
+    #define esa_matchfinder_prefetchw(address) __prefetch2((const void *)(address), 16)
 #else
     #error Your compiler, configuration or platform is not supported.
 #endif
@@ -384,7 +384,9 @@ static ptrdiff_t esa_matchfinder_build_interval_tree
     for (ptrdiff_t i = omp_block_start + omp_block_size - 1; i >= omp_block_start; i -= 1)
     {
         esa_matchfinder_prefetchr(&sa_parent_link[i - 2 * prefetch_distance]);
+
         esa_matchfinder_prefetchw(&plcp_leaf_link[sa_parent_link[i - prefetch_distance]]);
+        esa_matchfinder_prefetchw(&sa_parent_link[next_interval_index - prefetch_distance]);
 
         uint64_t next_pos                   =  sa_parent_link[i];
         uint64_t next_lcp                   =  (uint64_t)plcp_leaf_link[next_pos] - min_match_length;

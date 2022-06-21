@@ -29,6 +29,8 @@ The esa-matchfinder finds all distance optimal matches (between min_match_length
 The esa-matchfinder released under the [Apache License Version 2.0](LICENSE "Apache license") and is considered suitable for production use. However, no warranty or fitness for a particular purpose is expressed or implied.
 
 ## Changes
+* June 19, 2022 (1.0.1)
+  * Improved cache coherence for ARMv8 architecture.
 * June 12, 2022 (1.0.0)
   * Initial public release of the esa-matchfinder.
 
