@@ -3,7 +3,7 @@
 This file is a part of esa-matchfinder, a library for efficient
 Lempel-Ziv factorization using enhanced suffix array (ESA).
 
-   Copyright (c) 2022 Ilya Grebnov <ilya.grebnov@gmail.com>
+   Copyright (c) 2022-2023 Ilya Grebnov <ilya.grebnov@gmail.com>
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -714,7 +714,61 @@ ESA_MATCHFINDER_MATCH * esa_matchfinder_find_all_matches(void * mf, ESA_MATCHFIN
 
     const uint64_t min_match_length = (uint64_t)matchfinder_ctx->min_match_length_minus_1;
     const uint64_t new_offset       = (uint64_t)position << ESA_MF_OFFSET_SHIFT;
-    uint64_t best_match             = ESA_MATCHFINDER_MAX_MATCH_LENGTH;
+    uint64_t best_match             = (uint64_t)(uint32_t)-1;
+    uint64_t reference              = plcp_leaf_link[position];
+
+    while (reference != 0)
+    {
+        const uint64_t interval     = sa_parent_link[reference];
+        const uint64_t match        = min_match_length + (interval >> ESA_MF_LCP_SHIFT) + ((interval & ESA_MF_OFFSET_MASK) << (32 - ESA_MF_OFFSET_SHIFT));
+
+#if defined(__LITTLE_ENDIAN__) && !defined(__BIG_ENDIAN__)
+        if (offsetof(ESA_MATCHFINDER_MATCH, length) == 0 && offsetof(ESA_MATCHFINDER_MATCH, offset) == 4)
+        {
+            *(uint64_t *)(void *)next_match = match;
+        }
+        else
+#endif
+        {
+            next_match->length      = (int32_t)(match      );
+            next_match->offset      = (int32_t)(match >> 32);
+        }
+
+        next_match                 += match > best_match;
+        best_match                  = match;
+
+        sa_parent_link[reference]   = (interval & (~ESA_MF_OFFSET_MASK)) + new_offset;
+        reference                   = interval & ESA_MF_PARENT_MASK;
+    }
+
+    return next_match;
+}
+
+ESA_MATCHFINDER_MATCH * esa_matchfinder_find_all_matches_in_window(void * mf, ESA_MATCHFINDER_MATCH * matches, uint64_t window_size)
+{
+    ESA_MF_CONTEXT * ESA_MF_RESTRICT const          matchfinder_ctx     = (ESA_MF_CONTEXT *)mf;
+
+    const ptrdiff_t                                 prefetch_distance   = 4;
+    const uint64_t                                  position            = matchfinder_ctx->position++;
+
+    uint64_t * ESA_MF_RESTRICT const                sa_parent_link      = matchfinder_ctx->sa_parent_link;
+    uint32_t * ESA_MF_RESTRICT const                plcp_leaf_link      = matchfinder_ctx->plcp_leaf_link;
+    uint64_t * ESA_MF_RESTRICT const                prefetch            = &matchfinder_ctx->prefetch[position & (prefetch_distance - 1)][0];
+    ESA_MATCHFINDER_MATCH * ESA_MF_RESTRICT         next_match          = matches;
+
+    esa_matchfinder_prefetchw(&sa_parent_link[              (sa_parent_link[prefetch[0]] & ESA_MF_PARENT_MASK)]);
+    esa_matchfinder_prefetchw(&sa_parent_link[prefetch[0] = (sa_parent_link[prefetch[1]] & ESA_MF_PARENT_MASK)]);
+    esa_matchfinder_prefetchw(&sa_parent_link[prefetch[1] = (sa_parent_link[prefetch[2]] & ESA_MF_PARENT_MASK)]);
+    esa_matchfinder_prefetchw(&sa_parent_link[prefetch[2] = (sa_parent_link[prefetch[3]] & ESA_MF_PARENT_MASK)]);
+    esa_matchfinder_prefetchw(&sa_parent_link[prefetch[3] = (sa_parent_link[prefetch[4]] & ESA_MF_PARENT_MASK)]);
+    esa_matchfinder_prefetchw(&sa_parent_link[prefetch[4] = (sa_parent_link[prefetch[5]] & ESA_MF_PARENT_MASK)]);
+    esa_matchfinder_prefetchw(&sa_parent_link[prefetch[5] = (sa_parent_link[prefetch[6]] & ESA_MF_PARENT_MASK)]);
+    esa_matchfinder_prefetchw(&sa_parent_link[prefetch[6] = (plcp_leaf_link[position + 8 * prefetch_distance])]);
+    esa_matchfinder_prefetchr(&plcp_leaf_link[position + 9 * prefetch_distance]);
+
+    const uint64_t min_match_length = (uint64_t)matchfinder_ctx->min_match_length_minus_1;
+    const uint64_t new_offset       = (uint64_t)position << ESA_MF_OFFSET_SHIFT;
+    uint64_t best_match             = (position > window_size ? (position - window_size) << 32 : 0) + (uint64_t)(uint32_t)-1;
     uint64_t reference              = plcp_leaf_link[position];
 
     while (reference != 0)
@@ -776,6 +830,65 @@ ESA_MATCHFINDER_MATCH esa_matchfinder_find_best_match(void * mf)
               uint64_t match        = min_match_length + (interval >> ESA_MF_LCP_SHIFT) + ((interval & ESA_MF_OFFSET_MASK) << (32 - ESA_MF_OFFSET_SHIFT));
 
         match                       = interval & ESA_MF_OFFSET_MASK ? match : best_match;
+        best_match                  = best_match == 0               ? match : best_match;
+
+        sa_parent_link[reference]   = (interval & (~ESA_MF_OFFSET_MASK)) + new_offset;
+        reference                   = interval & ESA_MF_PARENT_MASK;
+    }
+
+    {
+        ESA_MATCHFINDER_MATCH match;
+
+#if defined(__LITTLE_ENDIAN__) && !defined(__BIG_ENDIAN__)
+        if (offsetof(ESA_MATCHFINDER_MATCH, length) == 0 && offsetof(ESA_MATCHFINDER_MATCH, offset) == 4)
+        {
+            *(uint64_t *)(void *)&match = best_match;
+        }
+        else
+#endif
+        {
+            match.length            = (int32_t)(best_match      );
+            match.offset            = (int32_t)(best_match >> 32);
+        }
+
+        return match;
+    }
+}
+
+ESA_MATCHFINDER_MATCH esa_matchfinder_find_best_match_in_window(void * mf, uint64_t window_size)
+{
+    ESA_MF_CONTEXT * ESA_MF_RESTRICT const          matchfinder_ctx     = (ESA_MF_CONTEXT *)mf;
+
+    const ptrdiff_t                                 prefetch_distance   = 4;
+    const uint64_t                                  position            = matchfinder_ctx->position++;
+
+    uint64_t * ESA_MF_RESTRICT const                sa_parent_link      = matchfinder_ctx->sa_parent_link;
+    uint32_t * ESA_MF_RESTRICT const                plcp_leaf_link      = matchfinder_ctx->plcp_leaf_link;
+    uint64_t * ESA_MF_RESTRICT const                prefetch            = &matchfinder_ctx->prefetch[position & (prefetch_distance - 1)][0];
+
+    esa_matchfinder_prefetchw(&sa_parent_link[              (sa_parent_link[prefetch[0]] & ESA_MF_PARENT_MASK)]);
+    esa_matchfinder_prefetchw(&sa_parent_link[prefetch[0] = (sa_parent_link[prefetch[1]] & ESA_MF_PARENT_MASK)]);
+    esa_matchfinder_prefetchw(&sa_parent_link[prefetch[1] = (sa_parent_link[prefetch[2]] & ESA_MF_PARENT_MASK)]);
+    esa_matchfinder_prefetchw(&sa_parent_link[prefetch[2] = (sa_parent_link[prefetch[3]] & ESA_MF_PARENT_MASK)]);
+    esa_matchfinder_prefetchw(&sa_parent_link[prefetch[3] = (sa_parent_link[prefetch[4]] & ESA_MF_PARENT_MASK)]);
+    esa_matchfinder_prefetchw(&sa_parent_link[prefetch[4] = (sa_parent_link[prefetch[5]] & ESA_MF_PARENT_MASK)]);
+    esa_matchfinder_prefetchw(&sa_parent_link[prefetch[5] = (sa_parent_link[prefetch[6]] & ESA_MF_PARENT_MASK)]);
+    esa_matchfinder_prefetchw(&sa_parent_link[prefetch[6] = (plcp_leaf_link[position + 8 * prefetch_distance])]);
+    esa_matchfinder_prefetchr(&plcp_leaf_link[position + 9 * prefetch_distance]);
+
+    const uint64_t min_match_length = (uint64_t)matchfinder_ctx->min_match_length_minus_1;
+    const uint64_t new_offset       = (uint64_t)position << ESA_MF_OFFSET_SHIFT;
+    const uint64_t match_cutoff     = (position > window_size ? (position - window_size) << 32 : 0) + (uint64_t)(uint32_t)-1;
+
+    uint64_t best_match             = 0;
+    uint64_t reference              = plcp_leaf_link[position];
+
+    while (reference != 0)
+    {
+        const uint64_t interval     = sa_parent_link[reference];
+              uint64_t match        = min_match_length + (interval >> ESA_MF_LCP_SHIFT) + ((interval & ESA_MF_OFFSET_MASK) << (32 - ESA_MF_OFFSET_SHIFT));
+
+        match                       = match > match_cutoff          ? match : best_match;
         best_match                  = best_match == 0               ? match : best_match;
 
         sa_parent_link[reference]   = (interval & (~ESA_MF_OFFSET_MASK)) + new_offset;

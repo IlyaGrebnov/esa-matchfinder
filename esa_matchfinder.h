@@ -3,7 +3,7 @@
 This file is a part of esa-matchfinder, a library for efficient
 Lempel-Ziv factorization using enhanced suffix array (ESA).
 
-   Copyright (c) 2022 Ilya Grebnov <ilya.grebnov@gmail.com>
+   Copyright (c) 2022-2023 Ilya Grebnov <ilya.grebnov@gmail.com>
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -31,6 +31,11 @@ Please see the file LICENSE for full copyright and license details.
 
 #define ESA_MATCHFINDER_NO_ERROR            (0)
 #define ESA_MATCHFINDER_BAD_PARAMETER       (-1)
+
+#define ESA_MATCHFINDER_VERSION_MAJOR       1
+#define ESA_MATCHFINDER_VERSION_MINOR       1
+#define ESA_MATCHFINDER_VERSION_PATCH       0
+#define ESA_MATCHFINDER_VERSION_STRING      "1.1.0"
 
 #ifdef __cplusplus
 extern "C" {
@@ -96,8 +101,8 @@ extern "C" {
     int32_t esa_matchfinder_rewind(void * mf, int32_t position);
 
     /**
-    * Finds all distance optimal matches at the current match-finder position and advances position by one byte. The recorded
-    * matches will be sorted by strictly decreasing length and strictly increasing offset from the beginning of the block.
+    * Finds all distance-optimal matches at the current position of the match-finder, and then advances the position by one byte.
+    * The recorded matches will be sorted by strictly decreasing length and strictly increasing offset from the beginning of the block.
     * @param mf The enhanced suffix array (ESA) based match-finder.
     * @param matches The output array to record the matches (array must be of ESA_MATCHFINDER_MAX_MATCH_LENGTH size).
     * @return The pointer to the end of recorded matches array (if no matches were found, this will be the same as matches).
@@ -105,11 +110,29 @@ extern "C" {
     ESA_MATCHFINDER_MATCH * esa_matchfinder_find_all_matches(void * mf, ESA_MATCHFINDER_MATCH * matches);
 
     /**
-    * Finds the best match at the current match-finder position and advances position by one byte.
+    * Finds all distance-optimal matches within a specified sliding window at the current position of the match-finder, and then advances the position by one byte.
+    * The recorded matches will be sorted by strictly decreasing length and strictly increasing offset from the beginning of the block.
+    * @param mf The enhanced suffix array (ESA) based match-finder.
+    * @param matches The output array to record the matches (array must be of ESA_MATCHFINDER_MAX_MATCH_LENGTH size).
+    * @param window_size The maximum allowed distance between the current position and found matches.
+    * @return The pointer to the end of recorded matches array (if no matches were found, this will be the same as matches).
+    */
+    ESA_MATCHFINDER_MATCH * esa_matchfinder_find_all_matches_in_window(void * mf, ESA_MATCHFINDER_MATCH * matches, uint64_t window_size);
+
+    /**
+    * Finds the best match at the current position of the match-finder, and then advances the position by one byte.
     * @param mf The enhanced suffix array (ESA) based match-finder.
     * @return The best match found (match of zero length and zero offset is returned if no matches were found).
     */
     ESA_MATCHFINDER_MATCH esa_matchfinder_find_best_match(void * mf);
+
+    /**
+    * Finds the best match within a specified sliding window at the current position of the match-finder, and then advances the position by one byte.
+    * @param mf The enhanced suffix array (ESA) based match-finder.
+    * @param window_size The maximum allowed distance between the current position and found match.
+    * @return The best match found (match of zero length and zero offset is returned if no matches were found).
+    */
+    ESA_MATCHFINDER_MATCH esa_matchfinder_find_best_match_in_window(void * mf, uint64_t window_size);
 
     /**
     * Advances the match-finder position forward by the specified number of bytes without recording matches.

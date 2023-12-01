@@ -1,3 +1,6 @@
+Changes in 1.1.0 (November 30, 2023)
+- New API to find matches within specified sliding window.
+
 Changes in 1.0.1 (June 19, 2022)
 - Improved cache coherence for ARMv8 architecture.
 
