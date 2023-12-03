@@ -1,3 +1,6 @@
+Changes in 1.2.0 (December 2, 2023)
+- Small performance optimization for esa_matchfinder_advance API.
+
 Changes in 1.1.0 (November 30, 2023)
 - New API to find matches within specified sliding window.
 

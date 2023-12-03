@@ -914,8 +914,89 @@ ESA_MATCHFINDER_MATCH esa_matchfinder_find_best_match_in_window(void * mf, uint6
     }
 }
 
+static void esa_matchfinder_advance_backwards(void * mf, int32_t count)
+{
+    ESA_MF_CONTEXT * ESA_MF_RESTRICT const          matchfinder_ctx     = (ESA_MF_CONTEXT *)mf;
+
+    const ptrdiff_t                                 prefetch_distance   = 4;
+    const uint64_t                                  current_position    = matchfinder_ctx->position;
+    const uint64_t                                  target_position     = matchfinder_ctx->position += (uint64_t)count;
+
+    uint64_t * ESA_MF_RESTRICT const                sa_parent_link      = matchfinder_ctx->sa_parent_link;
+    uint32_t * ESA_MF_RESTRICT const                plcp_leaf_link      = matchfinder_ctx->plcp_leaf_link;
+
+    memset(matchfinder_ctx->prefetch, 0, sizeof(matchfinder_ctx->prefetch));
+
+    for (uint64_t position = target_position + prefetch_distance * 8; position-- != target_position; )
+    {
+        uint64_t * ESA_MF_RESTRICT const prefetch = &matchfinder_ctx->prefetch[position & (prefetch_distance - 1)][0];
+
+        esa_matchfinder_prefetchw(&sa_parent_link[              (sa_parent_link[prefetch[0]] & ESA_MF_PARENT_MASK)]);
+        esa_matchfinder_prefetchw(&sa_parent_link[prefetch[0] = (sa_parent_link[prefetch[1]] & ESA_MF_PARENT_MASK)]);
+        esa_matchfinder_prefetchw(&sa_parent_link[prefetch[1] = (sa_parent_link[prefetch[2]] & ESA_MF_PARENT_MASK)]);
+        esa_matchfinder_prefetchw(&sa_parent_link[prefetch[2] = (sa_parent_link[prefetch[3]] & ESA_MF_PARENT_MASK)]);
+        esa_matchfinder_prefetchw(&sa_parent_link[prefetch[3] = (sa_parent_link[prefetch[4]] & ESA_MF_PARENT_MASK)]);
+        esa_matchfinder_prefetchw(&sa_parent_link[prefetch[4] = (sa_parent_link[prefetch[5]] & ESA_MF_PARENT_MASK)]);
+        esa_matchfinder_prefetchw(&sa_parent_link[prefetch[5] = (sa_parent_link[prefetch[6]] & ESA_MF_PARENT_MASK)]);
+        esa_matchfinder_prefetchw(&sa_parent_link[prefetch[6] = (plcp_leaf_link[position - 8 * prefetch_distance])]);
+        esa_matchfinder_prefetchr(&plcp_leaf_link[position - 9 * prefetch_distance]);
+    }
+
+    for (uint64_t position = target_position; position-- != current_position; )
+    {
+        if (position >= 8 * prefetch_distance)
+        {
+            uint64_t * ESA_MF_RESTRICT const prefetch = &matchfinder_ctx->prefetch[position & (prefetch_distance - 1)][0];
+
+            esa_matchfinder_prefetchw(&sa_parent_link[              (sa_parent_link[prefetch[0]] & ESA_MF_PARENT_MASK)]);
+            esa_matchfinder_prefetchw(&sa_parent_link[prefetch[0] = (sa_parent_link[prefetch[1]] & ESA_MF_PARENT_MASK)]);
+            esa_matchfinder_prefetchw(&sa_parent_link[prefetch[1] = (sa_parent_link[prefetch[2]] & ESA_MF_PARENT_MASK)]);
+            esa_matchfinder_prefetchw(&sa_parent_link[prefetch[2] = (sa_parent_link[prefetch[3]] & ESA_MF_PARENT_MASK)]);
+            esa_matchfinder_prefetchw(&sa_parent_link[prefetch[3] = (sa_parent_link[prefetch[4]] & ESA_MF_PARENT_MASK)]);
+            esa_matchfinder_prefetchw(&sa_parent_link[prefetch[4] = (sa_parent_link[prefetch[5]] & ESA_MF_PARENT_MASK)]);
+            esa_matchfinder_prefetchw(&sa_parent_link[prefetch[5] = (sa_parent_link[prefetch[6]] & ESA_MF_PARENT_MASK)]);
+            esa_matchfinder_prefetchw(&sa_parent_link[prefetch[6] = (plcp_leaf_link[position - 8 * prefetch_distance])]);
+            esa_matchfinder_prefetchr(&plcp_leaf_link[position - 9 * prefetch_distance]);
+        }
+
+        const uint64_t new_offset       = (uint64_t)position << ESA_MF_OFFSET_SHIFT;
+        uint64_t reference              = plcp_leaf_link[position];
+        uint64_t interval               = sa_parent_link[reference];
+
+        while ((interval & ESA_MF_OFFSET_MASK) < new_offset)
+        {
+            sa_parent_link[reference]   = (interval & (~ESA_MF_OFFSET_MASK)) + new_offset;
+            reference                   = interval & ESA_MF_PARENT_MASK;
+            interval                    = sa_parent_link[reference];
+        }
+    }
+
+    memset(matchfinder_ctx->prefetch, 0, sizeof(matchfinder_ctx->prefetch));
+
+    for (uint64_t position = target_position - prefetch_distance * 8; position != target_position; position += 1)
+    {
+        uint64_t * ESA_MF_RESTRICT const prefetch = &matchfinder_ctx->prefetch[position & (prefetch_distance - 1)][0];
+
+        esa_matchfinder_prefetchw(&sa_parent_link[              (sa_parent_link[prefetch[0]] & ESA_MF_PARENT_MASK)]);
+        esa_matchfinder_prefetchw(&sa_parent_link[prefetch[0] = (sa_parent_link[prefetch[1]] & ESA_MF_PARENT_MASK)]);
+        esa_matchfinder_prefetchw(&sa_parent_link[prefetch[1] = (sa_parent_link[prefetch[2]] & ESA_MF_PARENT_MASK)]);
+        esa_matchfinder_prefetchw(&sa_parent_link[prefetch[2] = (sa_parent_link[prefetch[3]] & ESA_MF_PARENT_MASK)]);
+        esa_matchfinder_prefetchw(&sa_parent_link[prefetch[3] = (sa_parent_link[prefetch[4]] & ESA_MF_PARENT_MASK)]);
+        esa_matchfinder_prefetchw(&sa_parent_link[prefetch[4] = (sa_parent_link[prefetch[5]] & ESA_MF_PARENT_MASK)]);
+        esa_matchfinder_prefetchw(&sa_parent_link[prefetch[5] = (sa_parent_link[prefetch[6]] & ESA_MF_PARENT_MASK)]);
+        esa_matchfinder_prefetchw(&sa_parent_link[prefetch[6] = (plcp_leaf_link[position + 8 * prefetch_distance])]);
+        esa_matchfinder_prefetchr(&plcp_leaf_link[position + 9 * prefetch_distance]);
+    }
+}
+
 void esa_matchfinder_advance(void * mf, int32_t count)
 {
+    if (count >= /*ESA_MF_ADVANCE_BACKWARDS_THRESHOLD*/ 64)
+    {
+        esa_matchfinder_advance_backwards(mf, count);
+        return;
+    }
+
     ESA_MF_CONTEXT * ESA_MF_RESTRICT const          matchfinder_ctx     = (ESA_MF_CONTEXT *)mf;
 
     const ptrdiff_t                                 prefetch_distance   = 4;

@@ -29,6 +29,8 @@ The esa-matchfinder finds all distance optimal matches (between min_match_length
 The esa-matchfinder released under the [Apache License Version 2.0](LICENSE "Apache license") and is considered suitable for production use. However, no warranty or fitness for a particular purpose is expressed or implied.
 
 ## Changes
+* December 2, 2023 (1.2.0)
+  * Small performance optimization for esa_matchfinder_advance API.
 * November 30, 2023 (1.1.0)
   * New API to find matches within specified sliding window.
 * June 19, 2022 (1.0.1)

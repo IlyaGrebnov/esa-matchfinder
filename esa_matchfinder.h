@@ -33,9 +33,9 @@ Please see the file LICENSE for full copyright and license details.
 #define ESA_MATCHFINDER_BAD_PARAMETER       (-1)
 
 #define ESA_MATCHFINDER_VERSION_MAJOR       1
-#define ESA_MATCHFINDER_VERSION_MINOR       1
+#define ESA_MATCHFINDER_VERSION_MINOR       2
 #define ESA_MATCHFINDER_VERSION_PATCH       0
-#define ESA_MATCHFINDER_VERSION_STRING      "1.1.0"
+#define ESA_MATCHFINDER_VERSION_STRING      "1.2.0"
 
 #ifdef __cplusplus
 extern "C" {
