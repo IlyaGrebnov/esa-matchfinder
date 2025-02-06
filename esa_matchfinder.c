@@ -3,7 +3,7 @@
 This file is a part of esa-matchfinder, a library for efficient
 Lempel-Ziv factorization using enhanced suffix array (ESA).
 
-   Copyright (c) 2022-2023 Ilya Grebnov <ilya.grebnov@gmail.com>
+   Copyright (c) 2022-2025 Ilya Grebnov <ilya.grebnov@gmail.com>
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ Please see the file LICENSE for full copyright and license details.
 #include <string.h>
 #include <limits.h>
 
-#if defined(_OPENMP)
+#if defined(ESA_MATCHFINDER_OPENMP)
     #include <omp.h>
 
     #define ESA_MF_NUM_THREADS_MAX      (256)
@@ -206,7 +206,7 @@ static ESA_MF_CONTEXT * esa_matchfinder_alloc_ctx(int32_t max_block_size, int32_
     ESA_MF_CONTEXT *    matchfinder_ctx     = (ESA_MF_CONTEXT *)esa_matchfinder_alloc_aligned(sizeof(ESA_MF_CONTEXT), ESA_MF_STORAGE_PADDING);
     int32_t *           esa_storage         = (int32_t *)esa_matchfinder_alloc_aligned((2 * ESA_MF_STORAGE_PADDING + 3 * (size_t)max_block_size) * sizeof(int32_t), ESA_MF_STORAGE_PADDING);
 
-#if defined(_OPENMP)
+#if defined(ESA_MATCHFINDER_OPENMP) && defined(LIBSAIS_OPENMP)
     void *              libsais_ctx         = libsais_create_ctx_omp(num_threads);
 #else
     void *              libsais_ctx         = libsais_create_ctx();
@@ -251,27 +251,39 @@ static void esa_matchfinder_free_ctx(ESA_MF_CONTEXT * matchfinder_ctx)
     }
 }
 
-static void esa_matchfinder_convert_right_to_left_32u_to_64u(uint32_t * S, uint64_t * D, ptrdiff_t omp_block_start, ptrdiff_t omp_block_size)
+static void esa_matchfinder_convert_32u_to_64u(uint32_t * ESA_MF_RESTRICT S, uint64_t * ESA_MF_RESTRICT D, ptrdiff_t omp_block_start, ptrdiff_t omp_block_size)
 {
-    ptrdiff_t i, j; for (i = omp_block_start + omp_block_size - 1, j = omp_block_start; i >= j; i -= 1) { D[i] = (uint64_t)S[i]; }
+    ptrdiff_t i, j;
+    for (i = omp_block_start, j = omp_block_start + omp_block_size; i < j; i += 1) 
+    {
+        D[i] = (uint64_t)S[i];
+    }
 }
 
-static void esa_matchfinder_convert_left_to_right_32u_to_64u(uint32_t * ESA_MF_RESTRICT S, uint64_t * ESA_MF_RESTRICT D, ptrdiff_t omp_block_start, ptrdiff_t omp_block_size)
+static void esa_matchfinder_convert_inplace_32u_to_64u(uint32_t * ESA_MF_RESTRICT V, ptrdiff_t omp_block_start, ptrdiff_t omp_block_size)
 {
-    ptrdiff_t i, j; for (i = omp_block_start, j = omp_block_start + omp_block_size; i < j; i += 1) { D[i] = (uint64_t)S[i]; }
+    ptrdiff_t i, j;
+    for (i = omp_block_start + omp_block_size - 1, j = omp_block_start; i >= j; i -= 1) 
+    {
+#if defined(__LITTLE_ENDIAN__)
+        V[i + i + 0] = V[i]; V[i + i + 1] = 0;
+#else
+        V[i + i + 0] = 0; V[i + i + 1] = V[i];
+#endif
+    }
 }
 
-static void esa_matchfinder_convert_inplace_32u_to_64u_omp(uint32_t * S, uint64_t * D, ptrdiff_t n, ptrdiff_t num_threads)
+static void esa_matchfinder_convert_inplace_32u_to_64u_omp(uint32_t * ESA_MF_RESTRICT V, ptrdiff_t n, ptrdiff_t num_threads)
 {
     while (n >= 65536)
     {
         ptrdiff_t block_size = n >> 1; n -= block_size;
 
-#if defined(_OPENMP)
+#if defined(ESA_MATCHFINDER_OPENMP)
         #pragma omp parallel num_threads(num_threads) if(num_threads > 1)
 #endif
         {
-#if defined(_OPENMP)
+#if defined(ESA_MATCHFINDER_OPENMP)
             ptrdiff_t omp_thread_num      = omp_get_thread_num();
             ptrdiff_t omp_num_threads     = omp_get_num_threads();
 #else
@@ -284,11 +296,11 @@ static void esa_matchfinder_convert_inplace_32u_to_64u_omp(uint32_t * S, uint64_
             ptrdiff_t omp_block_start     = omp_thread_num * omp_block_stride;
             ptrdiff_t omp_block_size      = omp_thread_num < omp_num_threads - 1 ? omp_block_stride : block_size - omp_block_start;
 
-            esa_matchfinder_convert_left_to_right_32u_to_64u(S, D, n + omp_block_start, omp_block_size);
+            esa_matchfinder_convert_32u_to_64u(((uint32_t *)(void *)V) + n, ((uint64_t *)(void *)V) + n, omp_block_start, omp_block_size);
         }
     }
 
-    esa_matchfinder_convert_right_to_left_32u_to_64u(S, D, 0, n);
+    esa_matchfinder_convert_inplace_32u_to_64u(V, 0, n);
 }
 
 static void esa_matchfinder_reset_interval_tree(uint64_t * ESA_MF_RESTRICT sa_parent_link, ptrdiff_t omp_block_start, ptrdiff_t omp_block_size)
@@ -298,11 +310,11 @@ static void esa_matchfinder_reset_interval_tree(uint64_t * ESA_MF_RESTRICT sa_pa
 
 static void esa_matchfinder_reset_interval_tree_omp(uint64_t * ESA_MF_RESTRICT sa_parent_link, ptrdiff_t n, ptrdiff_t num_threads)
 {
-#if defined(_OPENMP)
+#if defined(ESA_MATCHFINDER_OPENMP)
     #pragma omp parallel num_threads(num_threads) if(num_threads > 1 && n >= 65536)
 #endif
     {
-#if defined(_OPENMP)
+#if defined(ESA_MATCHFINDER_OPENMP)
         ptrdiff_t omp_thread_num      = omp_get_thread_num();
         ptrdiff_t omp_num_threads     = omp_get_num_threads();
 #else
@@ -424,7 +436,7 @@ static ptrdiff_t esa_matchfinder_build_interval_tree
     return (ptrdiff_t)(next_interval_index + 1);
 }
 
-#if defined(_OPENMP)
+#if defined(ESA_MATCHFINDER_OPENMP)
 
 static ptrdiff_t esa_matchfinder_find_breakpoint
 (
@@ -464,7 +476,7 @@ static void esa_matchfinder_build_interval_tree_omp
     ESA_MF_THREAD_STATE *       threads
 )
 {
-#if defined(_OPENMP)
+#if defined(ESA_MATCHFINDER_OPENMP)
     ptrdiff_t breakpoints[ESA_MF_NUM_THREADS_MAX];
 
     for (ptrdiff_t thread = 0; thread < num_threads; thread += 1)
@@ -476,7 +488,7 @@ static void esa_matchfinder_build_interval_tree_omp
     #pragma omp parallel num_threads(num_threads) if(num_threads > 1 && n >= 65536)
 #endif
     {
-#if defined(_OPENMP)
+#if defined(ESA_MATCHFINDER_OPENMP)
         ptrdiff_t omp_thread_num      = omp_get_thread_num();
         ptrdiff_t omp_num_threads     = omp_get_num_threads();
 #else
@@ -501,7 +513,7 @@ static void esa_matchfinder_build_interval_tree_omp
                 omp_block_start,
                 omp_block_end - omp_block_start);
         }
-#if defined(_OPENMP)
+#if defined(ESA_MATCHFINDER_OPENMP)
         else
         {
             {
@@ -559,7 +571,7 @@ void * esa_matchfinder_create(int32_t max_block_size, int32_t min_match_length, 
     return (void *)esa_matchfinder_alloc_ctx(max_block_size, min_match_length, max_match_length, 1);
 }
 
-#if defined(_OPENMP)
+#if defined(ESA_MATCHFINDER_OPENMP)
 
 void * esa_matchfinder_create_omp(int32_t max_block_size, int32_t min_match_length, int32_t max_match_length, int32_t num_threads)
 {
@@ -607,7 +619,7 @@ int32_t esa_matchfinder_parse(void * mf, const uint8_t * block, int32_t block_si
 
     if (result == ESA_MATCHFINDER_NO_ERROR)
     {
-#if defined(_OPENMP)
+#if defined(ESA_MATCHFINDER_OPENMP) && defined(LIBSAIS_OPENMP)
         result = libsais_plcp_omp(
             block,
             (int32_t *)(void *)matchfinder_ctx->sa_parent_link,
@@ -626,7 +638,6 @@ int32_t esa_matchfinder_parse(void * mf, const uint8_t * block, int32_t block_si
         {
             esa_matchfinder_convert_inplace_32u_to_64u_omp(
                 (uint32_t *)(void *)matchfinder_ctx->sa_parent_link,
-                (uint64_t *)(void *)matchfinder_ctx->sa_parent_link,
                 matchfinder_ctx->block_size,
                 matchfinder_ctx->num_threads);
 
@@ -744,7 +755,7 @@ ESA_MATCHFINDER_MATCH * esa_matchfinder_find_all_matches(void * mf, ESA_MATCHFIN
     return next_match;
 }
 
-ESA_MATCHFINDER_MATCH * esa_matchfinder_find_all_matches_in_window(void * mf, ESA_MATCHFINDER_MATCH * matches, uint64_t window_size)
+ESA_MATCHFINDER_MATCH * esa_matchfinder_find_all_matches_in_window(void * mf, ESA_MATCHFINDER_MATCH * matches, int32_t window_size)
 {
     ESA_MF_CONTEXT * ESA_MF_RESTRICT const          matchfinder_ctx     = (ESA_MF_CONTEXT *)mf;
 
@@ -768,7 +779,7 @@ ESA_MATCHFINDER_MATCH * esa_matchfinder_find_all_matches_in_window(void * mf, ES
 
     const uint64_t min_match_length = (uint64_t)matchfinder_ctx->min_match_length_minus_1;
     const uint64_t new_offset       = (uint64_t)position << ESA_MF_OFFSET_SHIFT;
-    uint64_t best_match             = (position > window_size ? (position - window_size) << 32 : 0) + (uint64_t)(uint32_t)-1;
+    uint64_t best_match             = (position > (uint64_t)window_size ? (position - (uint64_t)window_size) << 32 : 0) + (uint64_t)(uint32_t)-1;
     uint64_t reference              = plcp_leaf_link[position];
 
     while (reference != 0)
@@ -855,7 +866,7 @@ ESA_MATCHFINDER_MATCH esa_matchfinder_find_best_match(void * mf)
     }
 }
 
-ESA_MATCHFINDER_MATCH esa_matchfinder_find_best_match_in_window(void * mf, uint64_t window_size)
+ESA_MATCHFINDER_MATCH esa_matchfinder_find_best_match_in_window(void * mf, int32_t window_size)
 {
     ESA_MF_CONTEXT * ESA_MF_RESTRICT const          matchfinder_ctx     = (ESA_MF_CONTEXT *)mf;
 
@@ -878,7 +889,7 @@ ESA_MATCHFINDER_MATCH esa_matchfinder_find_best_match_in_window(void * mf, uint6
 
     const uint64_t min_match_length = (uint64_t)matchfinder_ctx->min_match_length_minus_1;
     const uint64_t new_offset       = (uint64_t)position << ESA_MF_OFFSET_SHIFT;
-    const uint64_t match_cutoff     = (position > window_size ? (position - window_size) << 32 : 0) + (uint64_t)(uint32_t)-1;
+    const uint64_t match_cutoff     = (position > (uint64_t)window_size ? (position - (uint64_t)window_size) << 32 : 0) + (uint64_t)(uint32_t)-1;
 
     uint64_t best_match             = 0;
     uint64_t reference              = plcp_leaf_link[position];
@@ -944,7 +955,7 @@ static void esa_matchfinder_advance_backwards(void * mf, int32_t count)
 
     for (uint64_t position = target_position; position-- != current_position; )
     {
-        if (position >= 8 * prefetch_distance)
+        if (position >= (uint64_t)(8 * prefetch_distance))
         {
             uint64_t * ESA_MF_RESTRICT const prefetch = &matchfinder_ctx->prefetch[position & (prefetch_distance - 1)][0];
 

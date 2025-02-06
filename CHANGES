@@ -1,3 +1,6 @@
+Changes in 1.2.1 (February 6, 2025)
+- Resolved strict aliasing violation resulted in invalid code generation by Intel compiler.
+
 Changes in 1.2.0 (December 2, 2023)
 - Small performance optimization for esa_matchfinder_advance API.
 

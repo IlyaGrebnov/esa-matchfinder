@@ -2,7 +2,7 @@
 
 The esa-matchfinder is a C99 library for efficient Lempel-Ziv factorization using enhanced suffix array (ESA).
 
-Copyright (c) 2022-2023 Ilya Grebnov <ilya.grebnov@gmail.com>
+Copyright (c) 2022-2025 Ilya Grebnov <ilya.grebnov@gmail.com>
 
 > * The esa-matchfinder is block based algorithm with maximum supported block size of 512 megabytes finding matches in range of 2..64 bytes using 12x bytes of extra memory. ESA_MATCHFINDER_MATCH_BITS definition could be changed to support larger match finding range, but with reduction in maximum supported block size.
 > * The esa-matchfinder does not employ any heuristics or search depth limitations and always finds distance optimal matches even on highly repetitive sources. The only exception is matches at beginning at the block; due to implementation details the esa-matchfinder can not find any matches with offset 0.
@@ -29,6 +29,8 @@ The esa-matchfinder finds all distance optimal matches (between min_match_length
 The esa-matchfinder released under the [Apache License Version 2.0](LICENSE "Apache license") and is considered suitable for production use. However, no warranty or fitness for a particular purpose is expressed or implied.
 
 ## Changes
+* February 6, 2025 (1.2.1)
+  * Resolved strict aliasing violation resulted in invalid code generation by Intel compiler.
 * December 2, 2023 (1.2.0)
   * Small performance optimization for esa_matchfinder_advance API.
 * November 30, 2023 (1.1.0)
