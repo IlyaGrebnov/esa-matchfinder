@@ -29,6 +29,9 @@ The esa-matchfinder finds all distance optimal matches (between min_match_length
 The esa-matchfinder released under the [Apache License Version 2.0](LICENSE "Apache license") and is considered suitable for production use. However, no warranty or fitness for a particular purpose is expressed or implied.
 
 ## Changes
+* September 1, 2025 (1.2.2)
+  * Updated libsais to v2.10.4.
+  * Tuned prefetch distance for improved throughput.
 * February 6, 2025 (1.2.1)
   * Resolved strict aliasing violation resulted in invalid code generation by Intel compiler.
 * December 2, 2023 (1.2.0)

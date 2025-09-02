@@ -65,7 +65,7 @@ Please see the file LICENSE for full copyright and license details.
 #define ESA_MF_PARENT_SHIFT             (ESA_MF_TOTAL_BITS - ESA_MF_LCP_BITS - ESA_MF_OFFSET_BITS - ESA_MF_PARENT_BITS)
 #define ESA_MF_PARENT_MASK              (ESA_MF_PARENT_MAX << ESA_MF_PARENT_SHIFT)
 
-#define ESA_MF_STORAGE_PADDING          (64)
+#define ESA_MF_STORAGE_PADDING          (128)
 
 #if defined(__clang__)
     #pragma clang diagnostic push
@@ -338,7 +338,7 @@ static void esa_matchfinder_fast_forward
     uint64_t                    target_position
 )
 {
-    const uint64_t  prefetch_distance   = 32;
+    const uint64_t  prefetch_distance   = 64;
     uint64_t        position            = target_position - 1;
 
     for (; position >= prefetch_distance; position -= 1)
@@ -385,7 +385,7 @@ static ptrdiff_t esa_matchfinder_build_interval_tree
 {
     uint64_t intervals[2 * ESA_MATCHFINDER_MAX_MATCH_LENGTH];
 
-    const ptrdiff_t             prefetch_distance       = 32;
+    const ptrdiff_t             prefetch_distance       = 64;
     uint64_t * ESA_MF_RESTRICT  stack                   = intervals;
     uint64_t                    top_interval            = stack[0] = 0;
     uint64_t                    next_interval_index     = (uint64_t)(omp_block_start + omp_block_size - 1);
@@ -447,7 +447,7 @@ static ptrdiff_t esa_matchfinder_find_breakpoint
     ptrdiff_t                   omp_block_size
 )
 {
-    const ptrdiff_t prefetch_distance = 32;
+    const ptrdiff_t prefetch_distance = 64;
 
     for (ptrdiff_t i = omp_block_start + omp_block_size - 1; i >= omp_block_start; i -= 1)
     {
@@ -585,7 +585,9 @@ void * esa_matchfinder_create_omp(int32_t max_block_size, int32_t min_match_leng
         return NULL;
     }
 
-    num_threads = num_threads > 0 ? num_threads : omp_get_max_threads();
+    num_threads = num_threads > 0 ? num_threads : (omp_get_max_threads() / omp_get_num_threads());
+    num_threads = num_threads > 0 ? num_threads : 1;
+
     return (void *)esa_matchfinder_alloc_ctx(max_block_size, min_match_length, max_match_length, num_threads);
 }
 

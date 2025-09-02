@@ -1,3 +1,7 @@
+Changes in 1.2.2 (September 1, 2025)
+- Updated libsais to v2.10.4.
+- Tuned prefetch distance for improved throughput.
+
 Changes in 1.2.1 (February 6, 2025)
 - Resolved strict aliasing violation resulted in invalid code generation by Intel compiler.
 

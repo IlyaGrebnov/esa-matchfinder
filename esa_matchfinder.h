@@ -34,8 +34,8 @@ Please see the file LICENSE for full copyright and license details.
 
 #define ESA_MATCHFINDER_VERSION_MAJOR       1
 #define ESA_MATCHFINDER_VERSION_MINOR       2
-#define ESA_MATCHFINDER_VERSION_PATCH       1
-#define ESA_MATCHFINDER_VERSION_STRING      "1.2.1"
+#define ESA_MATCHFINDER_VERSION_PATCH       2
+#define ESA_MATCHFINDER_VERSION_STRING      "1.2.2"
 
 #if defined(ESA_MATCHFINDER_OPENMP) && !defined(LIBSAIS_OPENMP)
     #error "ESA_MATCHFINDER_OPENMP requires LIBSAIS_OPENMP to be defined. Please define LIBSAIS_OPENMP and enable OpenMP support for libsais."
